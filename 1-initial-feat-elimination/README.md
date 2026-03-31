@@ -78,6 +78,7 @@ correctly identified for removal.
 High correlation between two features means they carry largely the same information.
 Keeping both wastes capacity and, in linear models, causes multicollinearity.
 
+
 ### Pearson — linear relationships
 
 Pearson r measures the **strength of the linear relationship** between two variables.
@@ -99,15 +100,20 @@ consistently increases as the other does, but not necessarily at a constant rate
 spearman_corr = dataset_train[num_cols].corr(method='spearman')
 ```
 
-**When it matters most:** tree-based models (Random Forest, GBM).
-Trees are immune to linear collinearity but redundant *monotonic* features still slow
+**When it matters most:** tree-based models (Random Forest, GBM). 
+Trees based rely on finding complex, often non-linear signals within the data, that's why they are immune to linear collinearity but redundant *monotonic* features still slow
 training and hurt feature-importance interpretability. Spearman captures non-linear
 monotonic relationships that Pearson misses.
+And in general I always think it is better to have as much as needed to do something [Occam’s Razor principle](https://en.wikipedia.org/wiki/Occam%27s_razor])
 
 ### The scenario where Pearson and Spearman diverge
 
 I once found, to my surprise, that the two metrics can disagree significantly on the
-same pair of features. The notebook constructs two toy examples to make this concrete:
+same pair of features. In my head if there is a linear relationship for sure also a monotonic one holds. 
+
+There is the need of some complex functions, but in the notebook there are two toy examples to make this concrete:
+
+![image](img/spearman_pearson_divergence.png)
 
 **Case A — high Spearman, low Pearson**
 
