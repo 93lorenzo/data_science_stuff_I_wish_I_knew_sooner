@@ -1,21 +1,18 @@
 # Data Science stuff I wish I knew sooner: Initial Feature Elimination
 
-> Part of the series *Data Science stuff I wish I knew sooner* — practical insights that
-> are often glossed over in textbooks but matter a lot in production.
+> Part of the series *Data Science stuff I wish I knew sooner* — practical insights that I learned during my experience
 
 ---
 
-## Motivation
+## Context
 
-Lately  I started to think how often I appreciated online docs and guides (and many more tools I am not even mentioning) before the advent of generative AI. For this reason I felt I could have shared the stuff I learnt (or I am learning) during my work experience, with a personal touch. I am not creative enough with names, so I decided to call this series "Data Science stuff I wish I knew sooner".
-It aims to provide insights and methodologies that are often overlooked in theoretical studies but are crucial for real-world success.
 
 I remember playing with the Titanic (or any other similar) dataset early in my career, doing a few plots, and jumping
-straight to model fitting. It took a few painful production incidents to teach me that the
+straight to model fitting. It took a few painful production model confusions to teach me that the
 feature set you feed the model matters as much as the model itself. ([Garbage in - Garbage out](https://en.wikipedia.org/wiki/Garbage_in,_garbage_out))
 
 This article is about **Initial Feature Elimination**: the screening step you run *before*
-any modelling, to remove features that are unstable, redundant, or misleading.
+any modelling, to remove features that are unstable, redundant, or misleading. 
 Done well it saves hours of debugging down the line and leads to models that actually
 generalise.
 
@@ -36,7 +33,7 @@ so you can see each method catch exactly the feature it was designed to flag.
 ## 1. Population Stability Index (PSI)
 
 The PSI quantifies how much a variable's distribution has **shifted** between two
-populations — typically your training window and your serving/test window.
+populations, typically your training window and your serving/test window.
 
 ```
 PSI = Σ (Actual% − Expected%) × ln(Actual% / Expected%)
@@ -63,7 +60,7 @@ from feature_engine.selection import DropHighPSIFeatures
 drop_psi = DropHighPSIFeatures(threshold=0.25, missing_values='ignore', split_frac=0.8)
 drop_psi.fit(X=dataset)
 
-print(drop_psi.features_to_drop_)   # ['num_feature_2']
+print(drop_psi.features_to_drop_) 
 print(drop_psi.psi_values_)
 ```
 
@@ -79,7 +76,7 @@ High correlation between two features means they carry largely the same informat
 Keeping both wastes capacity and, in linear models, causes multicollinearity.
 
 
-### Pearson — linear relationships
+### Pearson - linear relationships
 
 Pearson r measures the **strength of the linear relationship** between two variables.
 Values close to ±1 indicate a strong linear association.
@@ -89,11 +86,11 @@ pearson_corr = dataset_train[num_cols].corr(method='pearson')
 ```
 
 **When it matters most:** linear models (Logistic Regression, Linear Regression).
-Two features with |r| > 0.9 are redundant for a linear model — drop one.
+Two features with |r| > 0.9 are redundant for a linear model: drop one.
 
-### Spearman — monotonic relationships
+### Spearman - monotonic relationships
 
-Spearman ρ measures the **strength of the monotonic relationship** — one variable
+Spearman ρ measures the **strength of the monotonic relationship**, one variable
 consistently increases as the other does, but not necessarily at a constant rate.
 
 ```python
@@ -155,13 +152,6 @@ The scatter plots below show both cases side by side:
 - Use **Spearman** to screen redundancy for tree-based models.
 - Run **both** and compare — the gap tells you about the shape of the relationship.
 
-```python
-plotter.plot_comparison_heatmaps(
-    pearson_corr, spearman_corr,
-    title_a="Pearson", title_b="Spearman",
-    suptitle="Pearson vs Spearman — all numerical features",
-)
-```
 
 ---
 
@@ -200,6 +190,29 @@ your threshold (e.g. 3σ).
 In our dataset `cat_feature_corr` ↔ `cat_feature_1` shows PhiK ≈ 0.41 — moderate and
 significant, exactly as expected since we built `cat_feature_corr` to depend on
 `cat_feature_1`.
+
+---
+
+## 4. Putting it all together: choosing among correlated features
+
+Everything so far has been about identifying redundant or unstable features in isolation.
+But in practice you often face a subtler problem: **a group of features that all measure
+roughly the same thing, and you need to pick one.**
+
+My instinct early in my career was simple, compute the correlation of each feature with
+the target and keep the one with the highest value. It must be the most insightful for the classification.
+* Straightforward, fast, and (maybe) wrong.
+
+The problem is that when the differences are small, the ranking is essentially noise. A tiny difference in Pearson?Spearman correlation will not meaningfully change any model metric.
+
+That's why we should look at another thing, how stable are those features. Imagine selecting the highest in terms of correlation but also very prone to shift.
+
+![image](img/Correlation_and_PSI.png)
+
+#### In this scenario the decision is to keep `cg_feat_v3`
+
+* `cg_feat_v2` is more stable, but the drop wrt `cg_feat_v3` is around 0.03. In some cases it can be considered as a substantial the difference.
+* But, if we had a different scenario, with only `cg_feat_v2`  and `cg_feat_v1` to choose for, I would have chosen the `cg_feat_v2` even if the correlation is lower.
 
 ---
 
