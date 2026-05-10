@@ -1,0 +1,18 @@
+[project]
+name = "boosting-regression-limits"
+version = "0.1.0"
+description = "Boosting vs Linear Regression - Data Science Article"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "xgboost",
+    "scipy",
+    "jupyter",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
