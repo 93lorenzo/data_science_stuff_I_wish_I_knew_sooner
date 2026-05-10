@@ -1,6 +1,6 @@
-# Data Science stuff I wish I knew sooner: Is xgb always better than linear regression?
+# Data Science stuff I wish I knew sooner: Boosting regressors vs linear regression, which is better?
 
-When I started doing regression problems the first model I worked with is linear regression. It is the first model you learn, it is fast, and the coefficients are interpretable. But every time I used it I was silently signing a contract with five assumptions I was not (almost) always checking.
+When I started doing regression problems the first model I worked with is linear regression. It is the first model you learn, it is fast, and the coefficients are interpretable. But every time I used it I was silently signing a contract with five assumptions I was not (almost) always checking. And I am pretty sure every time I was forgetting about one of them (at least).
 
 The relationship has to be linear. The residuals have to be normally distributed. Their variance has to be constant. The observations have to be independent. The features cannot be too correlated with each other. In real case scenario tabular data, most of those are violated to some degree. 
 
@@ -63,4 +63,4 @@ Before shipping a tree-based model:
 2. At inference time, monitor whether incoming values fall outside that range.
 3. If they do, either retrain on data that covers the new range, or document that predictions for out-of-range inputs are unreliable.
 
-The model will not error. It will return a confident number. That is what makes this easy to miss.
+The model will not error. It will return a confident number, which might be over/underestimated
