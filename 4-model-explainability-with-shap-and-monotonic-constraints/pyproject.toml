@@ -1,0 +1,19 @@
+[project]
+name = "model-explainability-with-shap"
+version = "0.1.0"
+description = "Model Explainability with SHAP and Monotonic Constraints - Data Science Article"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "xgboost",
+    "shap",
+    "numba>=0.61",
+    "jupyter",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
