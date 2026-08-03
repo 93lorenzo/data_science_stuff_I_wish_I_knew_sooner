@@ -15,11 +15,9 @@ prediction. Global summary and single-case explanation from the same, consistent
 For this article I chose the Breast Cancer Wisconsin dataset, trained xgboost, extracts SHAP
 values, and walks through the SHAP plots I reach for most: **beeswarm**  (yes, the name comes from the swarms of bees), **heatmap** and **dependence** plots (debugging a specific feature or subgroup), **bar
 chart** (ranked importance), and **force** / **waterfall** plots (one prediction, fully decomposed).
-I have to admit though, that 99% of time I only use the beeswarm to have a full picture of the dataset explainability and the force plot or waterfall for the cherrypicking ona single case.
+I will explain all those plots, but I have to admit that 99% of time I only use the beeswarm to have a full picture of the dataset explainability and the force plot or waterfall for the cherrypicking ona single case.
 
-Then I introduce the concept  **monotonic constraints**: a way to tell XGBoost "I already know which
-direction this feature should push the prediction, don't second-guess it," verified with scikit-learn's
-partial dependence / ICE tooling.
+Then I introduce the concept  **monotonic constraints**: a way to tell XGBoost "I already know which direction this feature should push the prediction, don't second-guess it," verified with scikit-learn's partial dependence / ICE tooling.
 
 The companion notebook
 [`4-Model-Explainability-With-SHAP-and-Monotonic-Constraints.ipynb`](4-Model-Explainability-With-SHAP-and-Monotonic-Constraints.ipynb)
@@ -240,6 +238,7 @@ XGBoost's `monotone_constraints` lets you rule this out entirely: declare, per f
 prediction must be non-decreasing (`1`), non-increasing (`-1`), or left alone (`0`) as that feature
 increases, holding everything else fixed. It's enforced structurally while the trees are built, not
 patched on afterwards.
+( Why I said non-decreasing instead of increasing? Because it can be increasing or steady, so it is technically more correct to say that it will not decrease )
 
 ```python
 monotone_constraints = {col: 0 for col in X.columns}
@@ -302,15 +301,11 @@ knowledge you trust more than the training data* in a specific region, so:
 
 1. **Only constrain what you'd defend to a domain expert.** "I'm confident the real relationship is
    monotonic" is the bar — not "the dependence plot looks a little jagged." Constraining a feature
-   whose true relationship *isn't* monotonic will only hurt the model.
-2. **Check performance before and after**, on a metric that matches the problem (PR AUC here,
-   not ROC AUC). A well-chosen constraint on a feature that was already mostly monotonic should cost
-   you close to nothing, as it did here. A large drop means you constrained the wrong feature, or the
-   wrong direction. Usually I observed that the training (or CV) performances lowers a bit (some overfit removed), while the test set improves a bit.
-3. **Look at ICE curves for individual rows, not just the average PDP.** The PDP can hide exactly the
+   whose true relationship *isn't* monotonic will only hurt the model. If you observe some drop in the training performances (e.g. CV) and improvements in the test it might be you removed some noise or overfit.
+2. **Look at ICE curves for individual rows, not just the average PDP.** The PDP can hide exactly the
    local reversal you're trying to catch — a smooth average is not proof that every individual
    prediction behaves.
-4. **Constraints are per-feature and independent.** Apply `monotone_constraints` only to the handful
+3. **Constraints are per-feature and independent.** Apply `monotone_constraints` only to the handful
    of features you have a real prior on; leave the rest to learn freely.
 
 
