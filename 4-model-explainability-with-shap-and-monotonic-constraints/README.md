@@ -131,14 +131,9 @@ shap.plots.heatmap(shap_values)
 
 ![Heatmap plot](img/heatmap.png)
 
-Two clear blocks emerge: a left block where `mean concave points`, `area error`, `worst concave
-points`, `worst radius`, and friends are all firmly red (pushing malignant) and `f(x)` sits high, and
-a much wider right block where the same features are blue and `f(x)` sits low, the model learning one
-dominant, coherent axis of risk. `worst texture`'s row is visibly messier than its neighbours even
-within those blocks, which is the heatmap surfacing the same observation as the beeswarm plot, from a
-different angle. A heatmap with several distinct, unexplained blocks (rather than one dominant
-pattern) is often a sign the model is doing something different for a subgroup you haven't identified
-yet, worth checking before shipping a model.
+instance_order allows you to order from the highest to lowest predictions.
+
+It helps understand how the features are distributed from the highest to the lowest predictions. The colors help a lot understanding how higher values (red) of certain features really contribute to higher predictions.
 
 ### 2c. Debugging one feature at a time: the dependence plot
 
@@ -221,7 +216,7 @@ the more complete one.
 
 ---
 
-## 5. When you already know the direction: monotonic constraints TODO
+## 5. When you already know the direction: monotonic constraints 
 
 After playing around with shap a little bit some edge cases came out, and it was observed how confusing is having a model that interprets growing risk relationships with some ups and down. Everything above *explains* a model trained the ordinary way. This section changes how it's trained.
 
