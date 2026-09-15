@@ -16,8 +16,8 @@ never going to show up.
 
 The companion notebook
 [`5-Fraud-Date-Delta-Training.ipynb`](5-Fraud-Date-Delta-Training.ipynb) walks through measuring that lag,
-finding a defensible observation window from it, and the two ways to turn that window into a label, only
-one of which doesn't quietly poison the training set. On purpose, **no model is trained** in this notebook,
+finding a defensible observation window from it, and turning that window into a label: one step that is
+never optional, and one real choice underneath it. On purpose, **no model is trained** in this notebook,
 this is a labelling-strategy article, and the plots and counts are the whole point.
 
 ---
@@ -131,46 +131,49 @@ without ever seeing this trade-off.
 
 ---
 
-## 3. Turning a date delta into a label — two ways, only one is safe
+## 3. Turning a date delta into a label — one mandatory step, one real choice
 
 Picking `optimal_date_delta = 60` answers "how many days of reporting lag should the label definition
-tolerate?". Applying that answer to the training data can be done two ways, and this is the part worth
-being deliberate about:
+tolerate?". Applying that answer to the training data always does one thing first, then makes one choice:
 
-1. **Discard the immature tail (recommended).** Drop every transaction from the last 60 days of the
-   dataset outright. We genuinely do not know yet whether they will turn into fraud within the window, so
-   they are excluded rather than guessed at. Everything that remains has had the full window to be
-   reported, so its label — fraud or not — can be trusted.
-2. **Relabel and keep everything.** Keep the immature tail too, and mark anything not (yet) reported as
-   fraud as legitimate (`0`).
+**Always: drop the immature tail.** Every transaction from the last 60 days of the dataset is excluded
+outright. We genuinely do not know yet whether they will turn into fraud within the window, so there is
+no safe default for them — this isn't one of the two strategies, it happens either way.
 
-Both behaviours also relabel any fraud reported *later* than the window as `0` — that part is just
-enforcing the window's own definition of "fraud" consistently, in both cases equally. The two only differ
-on transactions too recent to have finished the observation window.
+**Then, a choice.** Among what's left (transactions old enough to have had the full 60 days), a handful
+may have been confirmed as fraud, but only *after* the window had already closed. That late-discovered
+fraud no longer satisfies the window's own definition — "fraud, if reported within 60 days" — so what
+happens to those specific rows is genuinely a choice:
+
+1. **Relabel to legitimate (0), the default.** The row stays, answering the narrower, time-boxed
+   question the label is now defined around ("was this confirmed fraud within 60 days"), rather than the
+   unbounded one ("is this fraud, ever").
+2. **Drop the row entirely.** Nothing forces a transaction that is *definitely* fraud to carry a
+   "legitimate" label; the cost is a smaller dataset rather than a contradicted one.
 
 | | Rows | Fraud count | Fraud ratio |
 |---|---|---|---|
 | Original (synthetic ground truth) | 2,512 | 25 | 0.995% |
-| **Discard immature tail** | 2,085 (427 dropped) | 17 | 0.815% |
-| **Relabel and keep everything** | 2,512 (0 dropped) | 21 | 0.836% |
+| **Relabel late fraud to legitimate** | 2,085 (427 dropped) | 17 | 0.815% |
+| **Drop late fraud entirely** | 2,083 (429 dropped) | 17 | 0.816% |
 
-The 427 rows in the immature tail split two ways: 4 of them are transactions already confirmed as fraud,
-just too recently for the 60-day window to have fully elapsed, and 421 are transactions that simply
-haven't had 60 days to be reported yet. Neither mode is free of cost, but the costs are different in
-kind:
+Both modes agree on almost the entire dataset here: the immature tail is gone either way, and every
+mature transaction with a reporting lag of 60 days or less keeps its original label either way. The only
+disputed rows are the 2 mature transactions confirmed as fraud more than 60 days after the fact.
+Relabelling keeps them as legitimate-for-this-window; dropping removes them so nothing in the training
+set ever contradicts a confirmed outcome. Two rows either way, not a dramatic difference, and that's the
+point: this window was chosen (Section 2) right at the point where the maturity curve has already
+captured nearly every reportable fraud, so almost none are left over to disagree about.
 
-* **Discarding** loses those 4 already-confirmed frauds along with the rest of the tail — a real, but
-  small and fully known cost. Every row that remains earned its label honestly.
-* **Relabelling** recovers those same 4 frauds (fraud count goes from 17 back up to 21), but it also
-  keeps the other 421 rows and labels every one of them legitimate by default. None of them happen to
-  have flipped to fraud in this particular snapshot, but the mode never checked; it would treat them the
-  exact same way whether they had or not. That is the actual risk: nothing about "relabel and keep
-  everything" distinguishes "confirmed clean" from "not yet resolved", for these 421 rows or for any
-  future slice of data where the distinction might not resolve as harmlessly.
+That is not guaranteed at a worse window. Picking a shorter, more naive `d` (14 or 20 days, both well
+before the plateau) leaves 17-18 rows in dispute instead of 2, several of them fraud that "relabel" keeps
+as label-1 evidence for the narrower window and "drop" discards instead. Choosing `d` well and choosing
+how to treat late fraud are not independent decisions: a good `d` makes the second choice nearly moot, a
+poor one makes it consequential.
 
 ```python
-strict_df  = analyzer.apply_date_delta_window(optimal_date_delta, discard_immature=True)
-relabel_df = analyzer.apply_date_delta_window(optimal_date_delta, discard_immature=False)
+relabel_df = analyzer.apply_date_delta_window(optimal_date_delta, drop_late_fraud=False)
+remove_df  = analyzer.apply_date_delta_window(optimal_date_delta, drop_late_fraud=True)
 ```
 
 ---
@@ -186,17 +189,21 @@ writes that down explicitly or not. Once `d` is chosen:
 2. **Never default an unproven row to "not fraud".** The temptation is to keep every row because it
    feels like free data. It isn't. It's label noise, and it concentrates on the rows closest to
    production, exactly where a model's mistakes are most expensive.
-3. **Discarding the immature tail is a conservative choice, not a lossy one.** It costs recent rows,
-   sometimes even a handful of already-confirmed frauds sitting right at the edge of the window. That
-   cost is small and known. The cost of mislabelled rows is neither.
-4. **Expect the maturity curve to peak, and break ties toward the smallest `d`.** It climbs, then falls,
+3. **Dropping the immature tail isn't optional, and that's fine.** It costs recent rows, sometimes even a
+   handful of already-confirmed frauds sitting right at the edge of the window. That cost is small and
+   known. The cost of mislabelled rows is neither, so there is nothing to weigh here.
+4. **What to do with late-discovered fraud is the actual choice, and it's a small one if `d` is good.**
+   Relabelling it legitimate answers a narrower, time-boxed question; dropping it avoids ever
+   contradicting a confirmed outcome. Both are defensible — what matters is picking one on purpose, and
+   noticing that the choice barely moves the needle once `d` already sits near the peak.
+5. **Expect the maturity curve to peak, and break ties toward the smallest `d`.** It climbs, then falls,
    because the two effects it balances (more lag tolerated, less mature data left) pull in opposite
    directions. When several windows tie for the best fraud count, the smallest one is strictly better,
    never just a tie-breaking convention.
-5. **Look at the price of the last label before paying it.** The step from the second-best window to the
+6. **Look at the price of the last label before paying it.** The step from the second-best window to the
    true optimum is often far more expensive, in dropped transactions, than every earlier step combined.
    Taking the strict optimum by default is reasonable; taking it without checking what it cost is not.
-6. **Revisit `d` as reporting behaviour changes.** A fraud team that gets faster (or slower) at closing
+7. **Revisit `d` as reporting behaviour changes.** A fraud team that gets faster (or slower) at closing
    cases shifts the whole lag distribution, and the optimal date delta with it. This isn't a constant to
    set once.
 
