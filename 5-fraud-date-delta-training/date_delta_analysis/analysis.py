@@ -192,44 +192,59 @@ class FraudDateDeltaAnalyzer:
     def apply_date_delta_window(
         self,
         date_delta_days: int,
-        discard_immature: bool = True,
+        drop_late_fraud: bool = False,
     ) -> pd.DataFrame:
         """Re-derive labels so they are consistent with a fixed observation window.
 
-        Any fraud reported later than ``date_delta_days`` after its
-        transaction is, from this window's point of view, not something we
-        could have known in time — it is relabelled to legitimate (0). That
-        part happens either way, and is what makes the label consistent with
-        the chosen definition of "fraud, as observed within ``date_delta_days``
-        days".
+        Two things always happen, regardless of ``drop_late_fraud``:
 
-        The two behaviours this method offers only differ on the *immature*
-        tail — transactions that happened fewer than ``date_delta_days`` days
-        before ``reference_date`` and therefore haven't had the full window
-        to be reported yet:
+        1. The **immature tail** is dropped: transactions that happened
+           fewer than ``date_delta_days`` days before ``reference_date``
+           haven't had the full window to be reported yet, so nothing
+           trustworthy can be said about their label at this window length.
+           There is no safe alternative here, defaulting them to
+           legitimate would mislabel whichever of them simply haven't been
+           reported yet, so they are excluded rather than guessed at.
+        2. Among what remains (the *mature* transactions), the window's own
+           definition of fraud gets enforced: "fraud" now specifically
+           means "reported within ``date_delta_days`` days of the
+           transaction". A transaction that is genuinely fraud, but was
+           only confirmed after the window had already closed, no longer
+           satisfies that narrower definition.
 
-        - ``discard_immature=True`` (recommended): drop those rows entirely.
-          We genuinely do not know their label yet, so they are excluded
-          rather than guessed at. The cost is real but bounded and visible:
-          a handful of already-confirmed frauds that simply happened too
-          recently get dropped along with the rest of the tail.
-        - ``discard_immature=False``: keep every row, immature tail
-          included. Every one of those still-unresolved transactions is
-          kept labelled 0 by default, whether or not it has genuinely been
-          confirmed clean. This quietly pollutes the negative class with
-          "not yet observed long enough" transactions dressed up as
-          confirmed-legitimate ones — the labels no longer mean what the
-          modelling problem assumes they mean. This mode is provided to
-          demonstrate the mistake, not because it should be used.
+        ``drop_late_fraud`` is only about how (2) is enforced, for the
+        mature transactions whose confirmed reporting lag exceeds the
+        window:
+
+        - ``drop_late_fraud=False`` (default): relabel it to legitimate
+          (0). This is the standard way fixed-horizon labels are built
+          ("bad within N days", "converted within N days", ...) — the row
+          stays, answering the narrower, time-boxed question the label is
+          now defined around.
+        - ``drop_late_fraud=True``: drop the row entirely instead. Nothing
+          forces a transaction that is *definitely* fraud to carry a
+          "legitimate" label; the trade-off is a smaller dataset in
+          exchange for never contradicting a confirmed outcome.
+
+        Both are legitimate choices, and the right one depends on what the
+        deployed model actually needs to answer: "will this be confirmed
+        fraud within the window" (relabel) or "is this fraud, full stop,
+        using only the cases we can speak to cleanly" (drop). In practice
+        this bucket tends to be small whenever the window itself was chosen
+        near the peak of the maturity curve (Section 4), by construction,
+        few frauds are still being missed at that point.
         """
         out = self.df.drop(columns="_date_delta_days").copy()
         delta = self.df["_date_delta_days"]
 
-        beyond_window = (out[self.label_col] == 1) & (delta > date_delta_days)
-        out.loc[beyond_window, self.label_col] = 0
+        cutoff = self.reference_date - pd.Timedelta(days=date_delta_days)
+        is_mature = self.df[self.transaction_date_col] <= cutoff
+        out, delta = out[is_mature].copy(), delta[is_mature]
 
-        if discard_immature:
-            cutoff = self.reference_date - pd.Timedelta(days=date_delta_days)
-            out = out[out[self.transaction_date_col] <= cutoff].copy()
+        is_late_fraud = (out[self.label_col] == 1) & (delta > date_delta_days)
+        if drop_late_fraud:
+            out = out[~is_late_fraud].copy()
+        else:
+            out.loc[is_late_fraud, self.label_col] = 0
 
         return out

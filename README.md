@@ -4,3 +4,7 @@ Lately  I started to think how often I appreciated online docs and guides (and m
 It aims to provide insights and methodologies that are often overlooked in theoretical studies but are crucial for real-world success.
 
 *  [1. Initial Feature Elimination](1-initial-feat-elimination)
+*  [2. Binary Classification Metrics](2-classification-metrics)
+*  [3. Boosting regressors vs linear regression, which is better?](3-boosting-regression-limits)
+*  [4. Model Explainability with SHAP and Monotonic Constraints](4-model-explainability-with-shap-and-monotonic-constraints)
+*  [5. Fraud Date Delta](5-fraud-date-delta-training)
