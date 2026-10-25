@@ -75,6 +75,36 @@ other signal in the data.
 
 ---
 
+## 1b. Another dominant-class example: `airport_fee_flag`
+
+`payment_type` isn't the only naturally binary field hiding in the raw file.
+`airport_fee_flag` is 1 if `Airport_fee` is recorded as anything other than `NaN` or `0` —
+a nonzero airport fee was actually charged — and 0 otherwise. It's an even more lopsided
+split than `payment_type`'s: 92% / 8% against `payment_type`'s 83% / 15% / &lt;1% / &lt;1%,
+so it's a useful second data point for "how dominant can one class get before a category
+stops being worth checking at all".
+
+![well_tipped rate by airport_fee_flag](img/airport_fee_flag_rate.png)
+
+```python
+plotter.plot_category_rate(df, category_col="airport_fee_flag", label_col="well_tipped")
+```
+
+A real gap, but nowhere near `payment_type`'s: airport trips are "well tipped" 56.6% of the
+time against 64.5% for everything else, an ~8-point drop from the 63.8% baseline — compare
+that to `payment_type`'s swing from ~76% down to ~0%. Part of the gap is payment mix, not
+rider behaviour: airport trips run slightly more cash-heavy (19% vs. 15%), and cash tips are
+the same invisible-to-the-meter problem `payment_type` already surfaced above. Restricting
+to credit-card trips narrows it further, to 76.8% vs. 71.8%.
+
+It also explains Section 2's `8+ mi` break in the trend below: airport trips average 13.6
+miles, squarely inside that band, confirming it's mostly airport runs rather than a guess
+from distance alone — flat-rate airport fares just don't follow the usual "tip shrinks as
+the bill grows" pattern as cleanly. A more dominant class doesn't automatically mean a
+stronger signal, `airport_fee_flag` is the more skewed column here and the weaker one.
+
+---
+
 ## 2. An ordinal category: `distance_tier`
 
 `distance_tier` does have a natural order, short trips to long trips, and that order is
@@ -87,7 +117,7 @@ to look.
 ```python
 plotter.plot_category_rate(
     credit_card_df, category_col="distance_tier", label_col="well_tipped",
-    order=["0-1 mi", "1-2 mi", "2-4 mi", "4-8 mi", "8+ mi"],
+    order=["0-1 mi", "1-2 mi", "2-4 mi", "4-8 mi", "8+ mi"], overall_df=df,
 )
 ```
 
@@ -95,8 +125,11 @@ A clean downward trend for the first four bands: short trips get tipped generous
 trips less so. That matches well-documented tipping behaviour outside taxis too — riders
 anchor on a roughly fixed dollar amount rather than scaling the tip with the bill, so the
 percentage shrinks as the bill grows. The `8+ mi` band breaks the pattern and ticks back up,
-plausibly airport and other flat-rate trips in that bucket, where a different, more generous
-tipping norm applies. A real ordinal signal doesn't have to be perfectly monotonic to be
+plausibly airport and other flat-rate trips in that bucket, where the usual "tip shrinks as
+the bill grows" logic applies less cleanly — Section 1b confirms this directly with the real
+`Airport_fee` field rather than guessing from distance alone: airport trips still tip below
+the credit-card baseline, just not by nearly as much as the short-to-mid-distance drop-off
+on its own would predict. A real ordinal signal doesn't have to be perfectly monotonic to be
 worth using, but a break in the trend like this is worth explaining, not silently averaged
 away.
 
